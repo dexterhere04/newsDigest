@@ -4,6 +4,7 @@ import Article from "../models/article.model.js";
 import { RSS_SOURCES } from "../config/newsSources.js";
 import { scrapeContent } from "./scrapeContent.js";
 import { generateSummary } from "./summarizeContent.js";
+import clusterService from "./cluster.service.js";
 export type NormalizedArticle = {
     title: string;
     normalizedTitle: string;
@@ -139,9 +140,12 @@ async function updateContentSummary(rssFeed: NormalizedArticle[]) {
 }
 
 async function saveArticles(articles: NormalizedArticle[]) {
+    const created: any[] = [];
     for (const article of articles) {
-        await Article.create(article);
+        const doc = await Article.create(article);
+        created.push(doc);
     }
+    return created;
 }
 
 export async function fetchNews() {
@@ -172,13 +176,18 @@ export async function fetchNews() {
             )
         );
 
-        await saveArticles(
-            processedArticles
-        );
+        const createdArticles = await saveArticles(processedArticles);
 
-        console.log(
-            `Saved ${processedArticles.length} new articles`
-        );
+        console.log(`Saved ${createdArticles.length} new articles`);
+
+        // Cluster the newly created articles so every fetched article belongs to a cluster
+        try {
+            const ids = createdArticles.map((a) => a._id.toString());
+            const result = await clusterService.clusterArticlesByIds(ids);
+            console.log(`Clustering result: ${JSON.stringify(result)}`);
+        } catch (err) {
+            console.error("Clustering failed:", err);
+        }
 
         console.log(
             "News fetching complete"
