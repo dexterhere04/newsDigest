@@ -7,10 +7,10 @@ export const RSS_SOURCES = [
         allowScraping: true
     },
     {
-        name: "NDTV",
+        name: "Times of India",
         type: "rss",
-        homepage: "https://www.ndtv.com",
-        feed: "https://feeds.feedburner.com/ndtvnews-top-stories",
+        homepage: "https://timesofindia.indiatimes.com",
+        feed: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms",
         allowScraping: true
     }
 ];

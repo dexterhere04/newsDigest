@@ -9,8 +9,7 @@ const articleSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true,
-        lowercase: true,
-        index: true
+        lowercase: true
     },
     content: {
         type: String,
@@ -46,15 +45,13 @@ const articleSchema = new mongoose.Schema({
     topic: {
         type: String,
         required: true,
-        trim: true,
-        index: true
+        trim: true
     },
     normalizedTopic: {
         type: String,
         required: true,
         trim: true,
-        lowercase: true,
-        index: true
+        lowercase: true
     },
     keywords: [
         {
@@ -70,18 +67,15 @@ const articleSchema = new mongoose.Schema({
             "neutral",
             "negative"
         ],
-        default: "neutral",
-        index: true
+        default: "neutral"
     },
     clusterId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Cluster",
-        index: true
+        ref: "Cluster"
     },
     publishedAt: {
         type: Date,
-        required: true,
-        index: true
+        required: true
     },
     fetchedAt: {
         type: Date,

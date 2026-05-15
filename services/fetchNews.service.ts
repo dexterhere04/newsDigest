@@ -3,6 +3,7 @@ import { normalizeText } from "../utils/normalizeText.js";
 import Article from "../models/article.model.js";
 import { RSS_SOURCES } from "../config/newsSources.js";
 import { scrapeContent } from "./scrapeContent.js";
+import { generateSummary } from "./summarizeContent.js";
 export type NormalizedArticle = {
     title: string;
     normalizedTitle: string;
@@ -37,7 +38,7 @@ async function fetchRSSFeed(
 
     const feed = await parser.parseURL(source.feed);
 
-    return feed.items.map((item) => {
+    return feed.items.slice(0, 1).map((item) => {
 
         const title =item.title || "";
 
@@ -78,8 +79,14 @@ async function fetchRSSFeed(
 async function updateContentSummary(rssFeed: NormalizedArticle[]){
     for (const article of rssFeed){
         const scrapedArticle = await scrapeContent(article);
-        article.content = scrapedArticle.content;
+        article.content = scrapedArticle.content || article.content;
+        article.summary = await generateSummary(
+            article.title,
+            article.content,
+            article.summary
+        );
     }
+    return rssFeed;
 }
 
 async function saveArticles(articles: NormalizedArticle[]){
@@ -111,8 +118,7 @@ export async function fetchNews() {
                 `Fetching from ${source.name}`
             );
 
-            const articles = await fetchRSSFeed(source);
-            await updateContentSummary(articles);
+            const articles = await updateContentSummary(await fetchRSSFeed(source));
             console.log(
                 JSON.stringify(
                     articles,

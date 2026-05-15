@@ -1,5 +1,5 @@
 import { scrapeContent } from "../services/scrapeContent.js";
-const articleUrl = "https://timesofindia.indiatimes.com/india/10-days-of-manthan-for-keralas-simhasanam-why-congress-picked-vd-satheesan-over-kc-venugopal/articleshow/131099193.cms";
+const articleUrl = "https://www.indiatoday.in/sports/cricket/story/vaibhav-sooryavanshi-india-a-bcci-squad-announcement-tilak-varma-captain-sri-lanka-tri-series-2911674-2026-05-14";
 async function main() {
     const article = await scrapeContent({
         title: "How Vijay's anti-liquor push mirrors his Master arc",

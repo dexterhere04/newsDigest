@@ -16,10 +16,10 @@ app.get("/", (_req, res) => {
 const PORT = process.env.PORT || 3000;
 async function startServer() {
     await connectDB();
+    await fetchNews();
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });
 }
-await fetchNews();
 startServer();
 //# sourceMappingURL=app.js.map

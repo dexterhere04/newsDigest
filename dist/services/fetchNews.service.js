@@ -3,10 +3,11 @@ import { normalizeText } from "../utils/normalizeText.js";
 import Article from "../models/article.model.js";
 import { RSS_SOURCES } from "../config/newsSources.js";
 import { scrapeContent } from "./scrapeContent.js";
+import { generateSummary } from "./summarizeContent.js";
 const parser = new Parser();
 async function fetchRSSFeed(source) {
     const feed = await parser.parseURL(source.feed);
-    return feed.items.map((item) => {
+    return feed.items.slice(0, 1).map((item) => {
         const title = item.title || "";
         const content = item.contentSnippet || "";
         return {
@@ -33,8 +34,10 @@ async function fetchRSSFeed(source) {
 async function updateContentSummary(rssFeed) {
     for (const article of rssFeed) {
         const scrapedArticle = await scrapeContent(article);
-        article.content = scrapedArticle.content;
+        article.content = scrapedArticle.content || article.content;
+        article.summary = await generateSummary(article.title, article.content, article.summary);
     }
+    return rssFeed;
 }
 async function saveArticles(articles) {
     for (const article of articles) {
@@ -52,8 +55,7 @@ export async function fetchNews() {
         console.log("Fetching news...");
         for (const source of RSS_SOURCES) {
             console.log(`Fetching from ${source.name}`);
-            const articles = await fetchRSSFeed(source);
-            await updateContentSummary(articles);
+            const articles = await updateContentSummary(await fetchRSSFeed(source));
             console.log(JSON.stringify(articles, null, 2));
             await saveArticles(articles);
             console.log(`Saved ${articles.length} articles from ${source.name}`);
