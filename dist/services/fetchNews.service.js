@@ -4,10 +4,11 @@ import Article from "../models/article.model.js";
 import { RSS_SOURCES } from "../config/newsSources.js";
 import { scrapeContent } from "./scrapeContent.js";
 import { generateSummary } from "./summarizeContent.js";
+import clusterService from "./cluster.service.js";
 const parser = new Parser();
 async function fetchRSSFeed(source) {
     const feed = await parser.parseURL(source.feed);
-    return feed.items.slice(0, 1).map((item) => {
+    return feed.items.slice(0, 10).map((item) => {
         const title = item.title || "";
         const content = item.contentSnippet || "";
         return {
@@ -31,6 +32,38 @@ async function fetchRSSFeed(source) {
         };
     });
 }
+async function fetchArticlesFromAllSources() {
+    const feeds = await Promise.all(RSS_SOURCES.map((source) => fetchRSSFeed(source)));
+    const queue = [];
+    const seenUrls = new Set();
+    for (const feed of feeds) {
+        for (const article of feed) {
+            const normalizedUrl = article.url.trim();
+            if (!normalizedUrl || seenUrls.has(normalizedUrl)) {
+                continue;
+            }
+            seenUrls.add(normalizedUrl);
+            queue.push({
+                ...article,
+                url: normalizedUrl,
+            });
+        }
+    }
+    return queue;
+}
+async function filterExistingArticles(articles) {
+    const urls = articles.map((article) => article.url);
+    if (urls.length === 0) {
+        return [];
+    }
+    const existingArticles = await Article.find({
+        url: { $in: urls },
+    })
+        .select({ url: 1 })
+        .lean();
+    const existingUrls = new Set(existingArticles.map((article) => article.url));
+    return articles.filter((article) => !existingUrls.has(article.url));
+}
 async function updateContentSummary(rssFeed) {
     for (const article of rssFeed) {
         const scrapedArticle = await scrapeContent(article);
@@ -40,25 +73,32 @@ async function updateContentSummary(rssFeed) {
     return rssFeed;
 }
 async function saveArticles(articles) {
+    const created = [];
     for (const article of articles) {
-        const exists = await Article.findOne({
-            url: article.url
-        }).exec();
-        if (exists) {
-            continue;
-        }
-        await Article.create(article);
+        const doc = await Article.create(article);
+        created.push(doc);
     }
+    return created;
 }
 export async function fetchNews() {
     try {
         console.log("Fetching news...");
-        for (const source of RSS_SOURCES) {
-            console.log(`Fetching from ${source.name}`);
-            const articles = await updateContentSummary(await fetchRSSFeed(source));
-            console.log(JSON.stringify(articles, null, 2));
-            await saveArticles(articles);
-            console.log(`Saved ${articles.length} articles from ${source.name}`);
+        const queuedArticles = await fetchArticlesFromAllSources();
+        const newArticles = await filterExistingArticles(queuedArticles);
+        console.log(`Queued ${queuedArticles.length} unique articles from ${RSS_SOURCES.length} sources`);
+        console.log(`Skipping ${queuedArticles.length - newArticles.length} already-saved articles`);
+        const processedArticles = await updateContentSummary(newArticles);
+        console.log(JSON.stringify(processedArticles, null, 2));
+        const createdArticles = await saveArticles(processedArticles);
+        console.log(`Saved ${createdArticles.length} new articles`);
+        // Cluster the newly created articles so every fetched article belongs to a cluster
+        try {
+            const ids = createdArticles.map((a) => a._id.toString());
+            const result = await clusterService.clusterArticlesByIds(ids);
+            console.log(`Clustering result: ${JSON.stringify(result)}`);
+        }
+        catch (err) {
+            console.error("Clustering failed:", err);
         }
         console.log("News fetching complete");
     }

@@ -17,7 +17,8 @@
   "scripts": {
     "dev": "node --loader ts-node/esm app.ts",
     "build": "tsc",
-    "start": "node dist/app.js"
+    "start": "node dist/app.js",
+    "test:api": "node --loader ts-node/esm tests/api.endpoints.test.ts"
   },
   "keywords": [],
   "author": "",

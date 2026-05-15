@@ -1,27 +1,26 @@
 import axios from "axios";
 function cleanSummary(text) {
     const compact = text.replace(/\s+/g, " ").trim();
-    const MAX_SUMMARY_LENGTH = 500;
-    if (compact.length <= MAX_SUMMARY_LENGTH) {
+    if (compact.length <= 1000) {
         return compact;
     }
-    const truncated = compact.slice(0, MAX_SUMMARY_LENGTH);
-    const lastSentenceEnd = Math.max(truncated.lastIndexOf(". "), truncated.lastIndexOf("! "), truncated.lastIndexOf("? "));
-    if (lastSentenceEnd > 0) {
-        return truncated.slice(0, lastSentenceEnd + 1).trim();
+    const truncated = compact.slice(0, 1000);
+    const lastFullStop = truncated.lastIndexOf(".");
+    if (lastFullStop > 0) {
+        return truncated.slice(0, lastFullStop + 1).trim();
     }
-    return `${truncated.trimEnd()}...`;
+    return truncated;
 }
 function buildSummaryPrompt(title, content) {
     return [
         "You are summarizing a news article for a digest feed.",
         "Return only the summary text. No headings, no bullet points, no markdown, no quotes.",
         "Summary requirements:",
-        "1) 2 to 4 sentences.",
+        "1) 10 to 20 sentences.",
         "2) Mention the central event, key actors, and the most important outcome or implication.",
         "3) Keep a neutral journalistic tone.",
         "4) Avoid speculation and avoid adding facts not present in the article.",
-        "5) Maximum 80 words.",
+        "5) Maximum 500 characters.",
         "",
         "Article title:",
         title,
@@ -70,7 +69,7 @@ export async function generateSummary(title, content, fallbackSummary) {
             generationConfig: {
                 temperature: 0.2,
                 topP: 0.9,
-                maxOutputTokens: 320,
+                maxOutputTokens: 500,
             },
         }, {
             headers: {

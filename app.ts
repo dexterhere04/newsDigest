@@ -4,24 +4,33 @@ import cors from "cors";
 import { fetchNews } from "./services/fetchNews.service.js";
 import cron from "node-cron";
 import { connectDB } from "./config/database.js";
+import apiV1Router from "./routes/v1/index.js";
 
 dotenv.config();
 
-const app = express();
+export function createApp() {
+    const app = express();
 
-app.use(cors());
-app.use(express.json());
+    app.use(cors());
+    app.use(express.json());
 
-app.get("/", (_req, res) => {
-    res.json({
-        success: true,
-        message: "News Digest API Running"
+    app.get("/", (_req, res) => {
+        res.json({
+            success: true,
+            message: "News Digest API Running"
+        });
     });
-});
+
+    app.use("/api/v1", apiV1Router);
+
+    return app;
+}
 
 const PORT = process.env.PORT || 3000;
 
 async function startServer() {
+    const app = createApp();
+
     await connectDB();
 
     // run initial fetch once on startup
@@ -49,4 +58,6 @@ async function startServer() {
     });
 }
 
-startServer();
+if (import.meta.url === `file://${process.argv[1]}`) {
+    startServer();
+}
