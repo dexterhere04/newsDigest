@@ -38,7 +38,7 @@ async function fetchRSSFeed(
 
     const feed = await parser.parseURL(source.feed);
 
-    return feed.items.slice(0, 1).map((item) => {
+    return feed.items.slice(0, 10).map((item) => {
 
         const title =item.title || "";
 
@@ -76,8 +76,57 @@ async function fetchRSSFeed(
     });
 }
 
-async function updateContentSummary(rssFeed: NormalizedArticle[]){
-    for (const article of rssFeed){
+async function fetchArticlesFromAllSources(): Promise<NormalizedArticle[]> {
+    const feeds = await Promise.all(
+        RSS_SOURCES.map((source) => fetchRSSFeed(source))
+    );
+
+    const queue: NormalizedArticle[] = [];
+    const seenUrls = new Set<string>();
+
+    for (const feed of feeds) {
+        for (const article of feed) {
+            const normalizedUrl = article.url.trim();
+
+            if (!normalizedUrl || seenUrls.has(normalizedUrl)) {
+                continue;
+            }
+
+            seenUrls.add(normalizedUrl);
+            queue.push({
+                ...article,
+                url: normalizedUrl,
+            });
+        }
+    }
+
+    return queue;
+}
+
+async function filterExistingArticles(
+    articles: NormalizedArticle[]
+): Promise<NormalizedArticle[]> {
+    const urls = articles.map((article) => article.url);
+
+    if (urls.length === 0) {
+        return [];
+    }
+
+    const existingArticles = await Article.find({
+        url: { $in: urls },
+    })
+        .select({ url: 1 })
+        .lean();
+
+    const existingUrls = new Set(
+        existingArticles.map((article) => article.url)
+    );
+
+    return articles.filter((article) => !existingUrls.has(article.url));
+}
+
+async function updateContentSummary(rssFeed: NormalizedArticle[]) {
+    for (const article of rssFeed) {
         const scrapedArticle = await scrapeContent(article);
         article.content = scrapedArticle.content || article.content;
         article.summary = await generateSummary(
@@ -89,17 +138,8 @@ async function updateContentSummary(rssFeed: NormalizedArticle[]){
     return rssFeed;
 }
 
-async function saveArticles(articles: NormalizedArticle[]){
+async function saveArticles(articles: NormalizedArticle[]) {
     for (const article of articles) {
-
-        const exists = await Article.findOne({
-            url: article.url
-        }).exec();
-
-        if (exists) {
-            continue;
-        }
-
         await Article.create(article);
     }
 }
@@ -112,28 +152,33 @@ export async function fetchNews() {
             "Fetching news..."
         );
 
-        for (const source of RSS_SOURCES) {
+        const queuedArticles = await fetchArticlesFromAllSources();
+        const newArticles = await filterExistingArticles(queuedArticles);
 
-            console.log(
-                `Fetching from ${source.name}`
-            );
+        console.log(
+            `Queued ${queuedArticles.length} unique articles from ${RSS_SOURCES.length} sources`
+        );
+        console.log(
+            `Skipping ${queuedArticles.length - newArticles.length} already-saved articles`
+        );
 
-            const articles = await updateContentSummary(await fetchRSSFeed(source));
-            console.log(
-                JSON.stringify(
-                    articles,
-                    null,
-                    2
-                )
-            );
-            await saveArticles(
-                articles
-            );
+        const processedArticles = await updateContentSummary(newArticles);
 
-            console.log(
-                `Saved ${articles.length} articles from ${source.name}`
-            );
-        }
+        console.log(
+            JSON.stringify(
+                processedArticles,
+                null,
+                2
+            )
+        );
+
+        await saveArticles(
+            processedArticles
+        );
+
+        console.log(
+            `Saved ${processedArticles.length} new articles`
+        );
 
         console.log(
             "News fetching complete"
